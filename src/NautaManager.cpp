@@ -5,6 +5,9 @@
 const char *headerKeys[] = {"Set-Cookie", "Location", "Cookie", "Date"};
 const size_t numberOfHeaders = 4;
 
+session_struct _session;
+config_struct _config;
+
 unsigned char h2int(char c)
 {
     if (c >= '0' && c <= '9')
@@ -20,6 +23,14 @@ unsigned char h2int(char c)
         return ((unsigned char)c - 'A' + 10);
     }
     return (0);
+}
+
+void myStrCpy(char *dest, const char *src, const size_t count)
+{
+    for (size_t i = 0; i < count; i++)
+    {
+        dest[i] = src[i];
+    }
 }
 
 String urldecode(String str)
@@ -110,6 +121,19 @@ NautaManager::~NautaManager()
 {
 }
 
+void NautaManager::SetMessageCallback(std::function<void(String)> messageCallback)
+{
+    msgCallback = messageCallback;
+    msgCallbackAssigned = true;
+}
+void NautaManager::SendMessage(String message)
+{
+    if (msgCallbackAssigned)
+    {
+        msgCallback(message);
+    }
+}
+
 void NautaManager::SaveConfig()
 {
     if (LittleFS.begin())
@@ -117,7 +141,7 @@ void NautaManager::SaveConfig()
         File configFile = LittleFS.open(this->_configFile, "w");
         if (configFile)
         {
-            configFile.write((uint8_t *)&(this->_config), sizeof(config_struct));
+            configFile.write((uint8_t *)&(_config), sizeof(config_struct));
             configFile.close();
         }
     }
@@ -134,8 +158,10 @@ void NautaManager::SaveSession()
         File sessionFile = LittleFS.open(this->_sessionFile, "w");
         if (sessionFile)
         {
-            sessionFile.write((uint8_t *)&(this->_session), sizeof(session_struct));
+            DebugPrintln("saving...");
+            sessionFile.write((uint8_t *)&(_session), sizeof(session_struct));
             sessionFile.close();
+            ESP.reset();
         }
     }
     else
@@ -166,7 +192,7 @@ bool NautaManager::LoadConfig()
         if (LittleFS.exists(this->_configFile))
         {
             File configFile = LittleFS.open(this->_configFile, "r");
-            configFile.read((uint8_t *)&(this->_config), sizeof(config_struct));
+            configFile.read((uint8_t *)&(_config), sizeof(config_struct));
             configFile.close();
         }
         else
@@ -188,7 +214,7 @@ bool NautaManager::LoadSession()
         if (LittleFS.exists(this->_sessionFile))
         {
             File sessionFile = LittleFS.open(this->_sessionFile, "r");
-            sessionFile.read((uint8_t *)&(this->_session), sizeof(session_struct));
+            sessionFile.read((uint8_t *)&(_session), sizeof(session_struct));
             sessionFile.close();
         }
         else
@@ -348,6 +374,12 @@ String NautaManager::GetLogoutPayload()
            "&ATTRIBUTE_UUID=" + urlencode(_session.ATTRIBUTE_UUID) + "&loggerId=" + urlencode(_session.loggerId) + "+" + urlencode(_config.USERNAME) +
            "&ssid=nauta_hogar" + "&remove=1";
 }
+String NautaManager::GetTimePayload()
+{
+    return "op=getLeftTime&ATTRIBUTE_UUID=" + urlencode(_session.ATTRIBUTE_UUID) + "&CSRFHW=" + urlencode(_session.CSRFHW) +
+           "&wlanuserip=" + urlencode(_session.wlanuserip) + "&ssid=nauta_hogar" + "&loggerId=" + urlencode(_session.loggerId) + "+" + urlencode(_config.USERNAME) +
+           "&username=" + urlencode(_config.USERNAME);
+}
 
 void DebugHeaders(std::shared_ptr<HTTPClient> client)
 {
@@ -366,9 +398,12 @@ bool NautaManager::GetATTRIBUTE_UUID()
         if (ampPos >= pos)
         {
             auto value = _cachedResponse.substring(pos + 15, ampPos);
+            value.trim();
             DebugPrintln("ATTR value: " + value);
-            strcpy(_session.ATTRIBUTE_UUID, value.c_str());
-            DebugPrintln("_session.ATTRIBUTE_UUID: " + String(_session.ATTRIBUTE_UUID));
+            DebugPrintln("ATTR value size:" + String(value.length()));
+            memccpy(_session.ATTRIBUTE_UUID, value.c_str(), 0, 32);
+            // myStrCpy(_session.ATTRIBUTE_UUID, value.c_str(), value.length());
+            DebugPrintln(_session.ATTRIBUTE_UUID);
             return true;
         }
     }
@@ -430,6 +465,7 @@ bool NautaManager::Login()
             {
                 auto loginError = GetLoginError();
                 Serial.println("LOGIN ERROR: " + loginError);
+                SendMessage(loginError);
                 return false;
             }
             else if (httpCode != HTTP_CODE_FOUND)
@@ -441,6 +477,7 @@ bool NautaManager::Login()
         else
         {
             DebugPrintln(String("[HTTP] POST... failed, error: ") + httpClient->errorToString(httpCode));
+            SendMessage("ERROR: no se puede contactar el portal de autenticación de ETECSA");
             return false;
         }
         httpClient->end();
@@ -492,13 +529,48 @@ bool NautaManager::Logout()
         DebugPrintln("Logout httpCode: " + String(httpCode));
         if (httpCode > 0)
         {
-            //SaveResponseToCache(httpClient);
+            SaveResponseToCache(httpClient);
+            Serial.println(_cachedResponse);
             ClearSession();
-            //Serial.println(_cachedResponse);
-            return httpCode == HTTP_CODE_OK;
+            ESP.reset();
+            return true;
+        }
+        else
+        {
+            SendMessage("ERROR: no se puede contactar el portal de autenticación de ETECSA");
         }
     }
     return false;
+}
+
+String NautaManager::GetRemainingTime()
+{
+    auto wifiClient = std::make_shared<BearSSL::WiFiClientSecure>();
+    auto httpClient = std::make_shared<HTTPClient>();
+    wifiClient->setInsecure();
+
+    auto timePayload = GetTimePayload();
+
+    DebugPrintln("timePayload: " + timePayload);
+    if (httpClient->begin(*wifiClient, "https://secure.etecsa.net:8443/EtecsaQueryServlet"))
+    {
+        httpClient->addHeader("Content-Type", "application/x-www-form-urlencoded");
+        httpClient->addHeader("Cookie", "JSESSIONID=" + String(_session.JSESSIONID));
+
+        auto httpCode = httpClient->POST(timePayload);
+        DebugPrintln("EtecsaQueryServlet httpCode: " + String(httpCode));
+        if (httpCode > 0)
+        {
+            SaveResponseToCache(httpClient);
+            Serial.println(_cachedResponse);
+            return _cachedResponse;
+        }
+        else
+        {
+            SendMessage("ERROR: no se puede contactar el portal de autenticación de ETECSA");
+        }
+    }
+    return String("CONNECTION ERROR");
 }
 
 bool NautaManager::Logout(String username, String csrfhw, String attr, String wlanuserip, String sessionid)
@@ -513,7 +585,7 @@ bool NautaManager::Logout(String username, String csrfhw, String attr, String wl
 
 void NautaManager::setUsername(String username)
 {
-    strcpy(this->_config.USERNAME, username.c_str());
+    strcpy(_config.USERNAME, username.c_str());
 }
 
 String NautaManager::getUsername()
@@ -523,7 +595,7 @@ String NautaManager::getUsername()
 
 void NautaManager::setPassword(String password)
 {
-    strcpy(this->_config.PASSWORD, password.c_str());
+    strcpy(_config.PASSWORD, password.c_str());
 }
 
 String NautaManager::getPassword()

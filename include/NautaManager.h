@@ -7,8 +7,6 @@
 
 #define MAX_LENGTH 250
 
-
-
 struct config_struct
 {
     char USERNAME[MAX_LENGTH];
@@ -35,9 +33,11 @@ private:
     String _sessionFile;
     String _configFile;
     String _cachedResponse;
+    std::function<void(String)> msgCallback;
+    bool msgCallbackAssigned = false;
 
-    config_struct _config;
-    session_struct _session;
+    // config_struct _config;
+    // session_struct _session;
     // cookies_struct _cookies;
 
     // std::shared_ptr<BearSSL::WiFiClientSecure> _wifiClient;
@@ -53,11 +53,14 @@ private:
     bool PostCredentials();
     String GetLoginPayload();
     String GetLogoutPayload();
+    String GetTimePayload();
     void SaveResponseToCache(std::shared_ptr<HTTPClient> httpClient);
+    void SendMessage(String message);
 
 public:
     NautaManager(String sessionFile, String configFile);
     ~NautaManager();
+    void SetMessageCallback(std::function<void(String)> messageCallback);
 
     bool LoadConfig();
     void SaveConfig();
@@ -68,6 +71,7 @@ public:
 
     bool Login();
     bool Logout();
+    String GetRemainingTime();
 
     bool Logout(String username, String csrfhw, String attr, String wlanuserip, String sessionid);
 

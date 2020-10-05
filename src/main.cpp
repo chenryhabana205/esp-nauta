@@ -16,100 +16,171 @@
 
 void saveConfigCallback()
 {
-  nautaManager->setUsername(wmUsernameParam.getValue());
-  nautaManager->setPassword(wmPasswordParam.getValue());
-  nautaManager->SaveConfig();
+    nautaManager->setUsername(wmUsernameParam.getValue());
+    nautaManager->setPassword(wmPasswordParam.getValue());
+    nautaManager->SaveConfig();
 }
 
 void setupWifiAndConfig()
 {
-  WiFiManager wifiManager;
+    WiFiManager wifiManager;
 
-  wifiManager.setSaveConfigCallback(saveConfigCallback);
-  wifiManager.addParameter(&wmUsernameParam);
-  wifiManager.addParameter(&wmPasswordParam);
+    wifiManager.setSaveConfigCallback(saveConfigCallback);
+    wifiManager.addParameter(&wmUsernameParam);
+    wifiManager.addParameter(&wmPasswordParam);
 
-  String chipID = String(ESP.getChipId(), HEX);
-  chipID.toUpperCase();
-  String AP_SSID = "IOT_" + chipID + "_AutoConnectAP";
-  String AP_PASS = "IOT_" + chipID;
+    String chipID = String(ESP.getChipId(), HEX);
+    chipID.toUpperCase();
+    String AP_SSID = "IOT_" + chipID + "_AutoConnectAP";
+    String AP_PASS = "IOT_" + chipID;
 
-  wifiManager.autoConnect(AP_SSID.c_str(), AP_PASS.c_str());
+    wifiManager.autoConnect(AP_SSID.c_str(), AP_PASS.c_str());
 
-  // Serial.println("connected...yeey :)");
-  DebugPrintln("connected...yeey :)");
+    // Serial.println("connected...yeey :)");
+    DebugPrintln("connected...yeey :)");
+}
+
+void updateStatusLed()
+{
+    if (WiFi.isConnected())
+    {
+        // DebugPrintln("WiFi ON");
+        digitalWrite(LED_BUILTIN, LOW);
+    }
+    else
+    {
+        // DebugPrintln("WiFi OFF");
+        digitalWrite(LED_BUILTIN, HIGH);
+    }
+    if (loggedIn)
+    {
+        // DebugPrintln("Nauta is ON");
+        digitalWrite(LED_BUILTIN_AUX, LOW);
+    }
+    else
+    {
+        // DebugPrintln("Nauta is OFF");
+        digitalWrite(LED_BUILTIN_AUX, HIGH);
+    }
+}
+
+void checkIfWifiIsActive(void *p)
+{
+    updateStatusLed();
+    // if (!WiFi.isConnected())
+    // {
+    //     DebugPrintln("Wifi disconected, restarting...");
+    //     ESP.reset();
+    // }
+}
+
+void blink(void *p)
+{
+    DebugPrintln("blink");
+    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+    digitalWrite(LED_BUILTIN_AUX, !digitalRead(LED_BUILTIN_AUX));
 }
 
 void setupButtons()
 {
-  pinMode(BUTTON, INPUT);
+    pinMode(BUTTON, INPUT_PULLUP);
+}
+
+void setupLeds()
+{
+    pinMode(LED_BUILTIN, OUTPUT);
+    pinMode(LED_BUILTIN_AUX, OUTPUT);
+    digitalWrite(LED_BUILTIN, LOW);
+    digitalWrite(LED_BUILTIN_AUX, HIGH);
+}
+
+void updateRemainingTime(void *)
+{
+    if (loggedIn)
+    {
+        auto time = nautaManager->GetRemainingTime();
+        udpBroadcaster->BroadcastMessage(NAUTA_TIME_REMAINING, time);
+    }
+}
+
+void messageCallback(String message)
+{
+    udpBroadcaster->BroadcastMessage(NAUTA_MESSAGE, message);
+}
+
+void setupTimers()
+{
+    tickerScheduler->add(TASK_CHECK_WIFI, 5000, checkIfWifiIsActive, nullptr, false);
+    tickerScheduler->add(TASK_UPDATE_TIME, 60000, updateRemainingTime, nullptr, false);
 }
 
 void setup()
 {
-  Serial.begin(115200);
-  if (!nautaManager->LoadConfig())
-  {
-    WiFiManager wm;
-    wm.resetSettings();
-  }
-  else
-  {
-    wmUsernameParam.setValue(nautaManager->getUsername().c_str(), nautaManager->getUsername().length());
-    wmPasswordParam.setValue(nautaManager->getPassword().c_str(), nautaManager->getPassword().length());
-  }
-  setupWifiAndConfig();
-  setupButtons();
-  loggedIn = nautaManager->LoadSession();
-  DebugPrintln("loggedId: " + String(loggedIn));
-  // loggedIn = false;
+    Serial.begin(115200);
+    nautaManager->SetMessageCallback(messageCallback);
+    if (!nautaManager->LoadConfig())
+    {
+        WiFiManager wm;
+        wm.resetSettings();
+    }
+    else
+    {
+        wmUsernameParam.setValue(nautaManager->getUsername().c_str(), 250);
+        wmPasswordParam.setValue(nautaManager->getPassword().c_str(), 250);
+    }
+    setupWifiAndConfig();
+    setupButtons();
+    setupLeds();
+    setupTimers();
+    loggedIn = nautaManager->LoadSession();
+    updateStatusLed();
+    DebugPrintln("loggedId: " + String(loggedIn));
 }
 
 void checkIfSessionChangeIsNeeded()
 {
-  if (btn.wasReleased())
-  {
-    DebugPrintln("Changing session state");
-    // nautaManager->Logout("celiap88@nauta.com.cu", "d3c4438df803a3f6a94cefa845f6b196", "399CC7A68DEDB0EBF6CFA74CFE7983A8", "10.224.224.181", "3AC5F90824E46FE9D9B42B450B819222");
-    if (!loggedIn)
+    if (btn.wasReleased())
     {
-      // nautaManager->testRedirect();
-      DebugPrintln("login");
-      if (nautaManager->Login())
-      {
-        loggedIn = true;
-      }
+        // udpBroadcaster->BroadcastMessage(NAUTA_TIME_REMAINING, "ALL TIME");
+        // return;
+        DebugPrintln("Changing session state");
+        // nautaManager->Logout("celiap88@nauta.com.cu", "d3c4438df803a3f6a94cefa845f6b196", "399CC7A68DEDB0EBF6CFA74CFE7983A8", "10.224.224.181", "3AC5F90824E46FE9D9B42B450B819222");
+        if (!loggedIn)
+        {
+            // nautaManager->testRedirect();
+            DebugPrintln("login");
+            if (nautaManager->Login())
+            {
+                loggedIn = true;
+            }
+        }
+        else
+        {
+            DebugPrintln("logout");
+            if (nautaManager->Logout())
+            {
+                loggedIn = false;
+            }
+        }
+        updateStatusLed();
     }
-    else
-    {
-      DebugPrintln("logout");
-      if (nautaManager->Logout())
-      {
-        loggedIn = false;
-      }
-    }
-  }
 }
 
 void checkIfCleanDataIsNeeded()
 {
-  if (btn.pressedFor(2000))
-  {
-    DebugPrintln("Clearing saved data!");
-    WiFiManager wm;
-    wm.erase();
-    wm.reboot();
-  }
-}
-
-void checkIfWifiIsActive() {
-  WiFiManager wm;
+    if (btn.pressedFor(10000))
+    {
+        DebugPrintln("Clearing saved data!");
+        WiFiManager wm;
+        wm.erase();
+        wm.reboot();
+    }
 }
 
 void loop()
 {
-  btn.read();
-  checkIfCleanDataIsNeeded();
-  checkIfSessionChangeIsNeeded();
-  checkIfWifiIsActive();
+    btn.read();
+    tickerScheduler->update();
+    checkIfCleanDataIsNeeded();
+    checkIfSessionChangeIsNeeded();
 }
