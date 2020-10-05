@@ -36,7 +36,6 @@ void setupWifiAndConfig()
 
     wifiManager.autoConnect(AP_SSID.c_str(), AP_PASS.c_str());
 
-    // Serial.println("connected...yeey :)");
     DebugPrintln("connected...yeey :)");
 }
 
@@ -141,13 +140,9 @@ void checkIfSessionChangeIsNeeded()
 {
     if (btn.wasReleased())
     {
-        // udpBroadcaster->BroadcastMessage(NAUTA_TIME_REMAINING, "ALL TIME");
-        // return;
         DebugPrintln("Changing session state");
-        // nautaManager->Logout("celiap88@nauta.com.cu", "d3c4438df803a3f6a94cefa845f6b196", "399CC7A68DEDB0EBF6CFA74CFE7983A8", "10.224.224.181", "3AC5F90824E46FE9D9B42B450B819222");
         if (!loggedIn)
         {
-            // nautaManager->testRedirect();
             DebugPrintln("login");
             if (nautaManager->Login())
             {

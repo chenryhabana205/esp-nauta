@@ -22,11 +22,6 @@ struct session_struct
     char JSESSIONID[MAX_LENGTH];
 };
 
-// struct cookies_struct
-// {
-//     char JSESSIONID[MAX_LENGTH];
-// };
-
 class NautaManager
 {
 private:
@@ -35,13 +30,6 @@ private:
     String _cachedResponse;
     std::function<void(String)> msgCallback;
     bool msgCallbackAssigned = false;
-
-    // config_struct _config;
-    // session_struct _session;
-    // cookies_struct _cookies;
-
-    // std::shared_ptr<BearSSL::WiFiClientSecure> _wifiClient;
-    // std::shared_ptr<HTTPClient> _httpClient;
 
     void GetCookie(String cookie);
     void GetCookies(std::shared_ptr<HTTPClient> httpClient);

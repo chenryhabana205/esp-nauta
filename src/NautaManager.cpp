@@ -111,10 +111,6 @@ NautaManager::NautaManager(String sessionFile, String configFile)
 {
     _sessionFile = sessionFile;
     _configFile = configFile;
-
-    // _wifiClient = std::make_shared<BearSSL::WiFiClientSecure>();
-    // _httpClient = std::make_shared<HTTPClient>();
-    // _wifiClient->setInsecure();
 }
 
 NautaManager::~NautaManager()
