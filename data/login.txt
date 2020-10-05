@@ -1,0 +1,21 @@
+curl "https://secure.etecsa.net:8443//LoginServlet" ^
+  -H "Connection: keep-alive" ^
+  -H "Pragma: no-cache" ^
+  -H "Cache-Control: no-cache" ^
+  -H "Origin: https://secure.etecsa.net:8443" ^
+  -H "Upgrade-Insecure-Requests: 1" ^
+  -H "DNT: 1" ^
+  -H "Content-Type: application/x-www-form-urlencoded" ^
+  -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.121 Safari/537.36" ^
+  -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9" ^
+  -H "Sec-Fetch-Site: same-origin" ^
+  -H "Sec-Fetch-Mode: navigate" ^
+  -H "Sec-Fetch-User: ?1" ^
+  -H "Sec-Fetch-Dest: document" ^
+  -H "Referer: https://secure.etecsa.net:8443/" ^
+  -H "Accept-Language: en-US,en;q=0.9,es;q=0.8" ^
+  -H "Cookie: JSESSIONID=1851BE4B16EECBD2448FC78B9B398368" ^
+  --data-raw "wlanuserip=10.224.224.181^&wlanacname=^&wlanmac=^&firsturl=notFound.jsp^&ssid=nauta_hogar^&usertype=^&gotopage=^%^2Fnauta_hogar^%^2FLoginURL^%^2Fpc_login.jsp^&successpage=^%^2Fnauta_hogar^%^2FOnlineURL^%^2Fpc_index.jsp^&loggerId=20201002134332015^&lang=es_ES^&username=celiap88^%^40nauta.com.cu^&password=*Rodrigo88^&CSRFHW=698da71a9184c6c977a520eb38cae81b" ^
+  --compressed
+
+  
